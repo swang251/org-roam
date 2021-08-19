@@ -382,7 +382,8 @@ the same time:
 The preview content comes from FILE, and the link as at POINT.")
 
 (defun org-roam-preview-visit (file point &optional other-window)
-  "Visit FILE at POINT. With OTHER-WINDOW non-nil do so in another window.
+  "Visit FILE at POINT and return the visited buffer.
+With OTHER-WINDOW non-nil do so in another window.
 In interactive calls OTHER-WINDOW is set with
 `universal-argument'."
   (interactive (list (org-roam-buffer-file-at-point 'assert)
@@ -392,11 +393,12 @@ In interactive calls OTHER-WINDOW is set with
         (display-buffer-fn (if other-window
                                #'switch-to-buffer-other-window
                              #'pop-to-buffer-same-window)))
+    (funcall display-buffer-fn buf)
     (with-current-buffer buf
       (widen)
       (goto-char point))
-    (funcall display-buffer-fn buf)
-    (when (org-invisible-p) (org-show-context))))
+    (when (org-invisible-p) (org-show-context))
+    buf))
 
 (defun org-roam-preview-get-contents (file point)
   "Get preview content for FILE at POINT."
@@ -596,7 +598,7 @@ Sorts by title."
   "A `magit-section' used by `org-roam-mode' to contain grep output.")
 
 (defun org-roam-grep-visit (file &optional other-window row col)
-  "Visits FILE. If ROW, move to the row, and if COL move to the COL.
+  "Visit FILE at row ROW (if any) and column COL (if any). Return the buffer.
 With OTHER-WINDOW non-nil (in interactive calls set with
 `universal-argument') display the buffer in another window
 instead."
@@ -608,6 +610,7 @@ instead."
         (display-buffer-fn (if other-window
                                #'switch-to-buffer-other-window
                              #'pop-to-buffer-same-window)))
+    (funcall display-buffer-fn buf)
     (with-current-buffer buf
       (widen)
       (goto-char (point-min))
@@ -615,8 +618,8 @@ instead."
         (forward-line (1- row)))
       (when col
         (forward-char (1- col))))
-    (funcall display-buffer-fn buf)
-    (when (org-invisible-p) (org-show-context))))
+    (when (org-invisible-p) (org-show-context))
+    buf))
 
 ;;;; Unlinked references
 (defvar org-roam-unlinked-references-result-re
