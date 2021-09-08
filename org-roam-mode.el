@@ -5,8 +5,8 @@
 ;; Author: Jethro Kuan <jethrokuan95@gmail.com>
 ;; URL: https://github.com/org-roam/org-roam
 ;; Keywords: org-mode, roam, convenience
-;; Version: 2.0.0
-;; Package-Requires: ((emacs "26.1") (dash "2.13") (f "0.17.2") (org "9.4") (emacsql "3.0.0") (emacsql-sqlite "1.0.0") (magit-section "2.90.1"))
+;; Version: 2.1.0
+;; Package-Requires: ((emacs "26.1") (dash "2.13") (f "0.17.2") (org "9.4") (emacsql "3.0.0") (emacsql-sqlite "1.0.0") (magit-section "3.0.0"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -545,22 +545,27 @@ Sorts by title."
 
 (defun org-roam-reflinks-get (node)
   "Return the reflinks for NODE."
-  (let ((refs (org-roam-db-query [:select [ref] :from refs
-                                  :where (= node-id $s1)]
+  (let ((refs (org-roam-db-query [:select :distinct [refs:ref links:source links:pos links:properties]
+                                  :from refs
+                                  :left-join links
+                                  :where (= refs:node-id $s1)
+                                  :and (= links:dest refs:ref)
+                                  :union
+                                  :select :distinct [refs:ref citations:node-id
+                                                     citations:pos citations:properties]
+                                  :from refs
+                                  :left-join citations
+                                  :where (= refs:node-id $s1)
+                                  :and (= citations:cite-key refs:ref)]
                                  (org-roam-node-id node)))
         links)
-    (pcase-dolist (`(,ref) refs)
-      (pcase-dolist (`(,source-id ,pos ,properties) (org-roam-db-query
-                                                     [:select [source pos properties]
-                                                      :from links
-                                                      :where (= dest $s1)]
-                                                     ref))
-        (push (org-roam-populate
-               (org-roam-reflink-create
-                :source-node (org-roam-node-create :id source-id)
-                :ref ref
-                :point pos
-                :properties properties)) links)))
+    (pcase-dolist (`(,ref ,source-id ,pos ,properties) refs)
+      (push (org-roam-populate
+             (org-roam-reflink-create
+              :source-node (org-roam-node-create :id source-id)
+              :ref ref
+              :point pos
+              :properties properties)) links))
     links))
 
 (defun org-roam-reflinks-sort (a b)
@@ -571,16 +576,16 @@ Sorts by title."
 
 (defun org-roam-reflinks-section (node)
   "The reflinks section for NODE."
-  (when (org-roam-node-refs node)
-    (let* ((reflinks (seq-sort #'org-roam-reflinks-sort (org-roam-reflinks-get node))))
-      (magit-insert-section (org-roam-reflinks)
-        (magit-insert-heading "Reflinks:")
-        (dolist (reflink reflinks)
-          (org-roam-node-insert-section
-           :source-node (org-roam-reflink-source-node reflink)
-           :point (org-roam-reflink-point reflink)
-           :properties (org-roam-reflink-properties reflink)))
-        (insert ?\n)))))
+  (when-let ((refs (org-roam-node-refs node))
+             (reflinks (seq-sort #'org-roam-reflinks-sort (org-roam-reflinks-get node))))
+    (magit-insert-section (org-roam-reflinks)
+      (magit-insert-heading "Reflinks:")
+      (dolist (reflink reflinks)
+        (org-roam-node-insert-section
+         :source-node (org-roam-reflink-source-node reflink)
+         :point (org-roam-reflink-point reflink)
+         :properties (org-roam-reflink-properties reflink)))
+      (insert ?\n))))
 
 ;;;; Grep
 (defvar org-roam-grep-map
